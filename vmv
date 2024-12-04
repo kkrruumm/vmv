@@ -1,0 +1,115 @@
+#!/bin/sh
+
+help() {
+    printf "This script will deploy the Mullvad VPN desktop client app on Void Linux.\n\n\
+You may run this script with 'doas ./vmv install' to install or update the Mullvad client.\n\
+If you would like to remove the Mullvad client, run 'doas ./vmv remove'.\n"
+}
+
+[ "$USER" != "root" ] &&
+    { printf "This script must be run as root.\n\n"; help; exit 1; }
+
+install() {
+    # If Mullvad has already been installed, kill service before updating
+    [ -e /var/service/mullvad ] &&
+        rm /var/service/mullvad
+
+    # Kill the process before update
+    pgrep "mullvad-gui" &&
+        pkill -x "mullvad-gui"
+
+    # Temporary directory to dump files into
+    [ ! -e /tmp/vmv ] &&
+        mkdir /tmp/vmv
+
+    cd /tmp/vmv
+
+    # Delete existing Mullvad package
+    [ -e /tmp/vmv/mullvad.deb ] &&
+        rm -Rf /tmp/vmv/*
+
+    # Grab the most recent Mullvad Debian package
+    wget --trust-server-names https://mullvad.net/en/download/app/deb/latest -O mullvad.deb
+
+    # We need binutils to extract the archive
+     ! which ar &&
+        xbps-install -Sy binutils
+
+    # Extract the goods
+    ar x mullvad.deb
+    tar -xf data.tar.xz
+
+    # Merge said goods into /opt/ and /usr/
+    cp -rf opt/* /opt/
+    cp -rf usr/* /usr/
+
+    # Create a runit service if it doesn't exist
+    if [ ! -e /etc/sv/mullvad/run ]; then
+        mkdir /etc/sv/mullvad && touch /etc/sv/mullvad/run
+        printf '#!/bin/sh\nexec 2>&1\nsv check dbus > /dev/null || exit 1\nexec /usr/bin/mullvad-daemon -v --disable-stdout-timestamps\n' > /etc/sv/mullvad/run
+        chmod +x /etc/sv/mullvad/run
+    fi
+
+    # Make sure dbus is installed and running
+    [ ! -e /etc/sv/dbus ] &&
+        xbps-install -Sy dbus
+
+    [ -e /etc/sv/dbus ] && [ ! -e /var/service/dbus ] &&
+        ln -s /etc/sv/dbus /var/service
+
+    # Start Mullvad service if isn't already started
+    [ ! -e /var/service/mullvad ] &&
+        ln -s /etc/sv/mullvad /var/service
+}
+
+remove() {
+    # Disable and remove Mullvad service
+    [ -e /var/service/mullvad ] && rm /var/service/mullvad
+    [ -e /etc/sv/mullvad ] && rm -Rf /etc/sv/mullvad
+
+    # Remove Mullvad binaries
+    [ -e /usr/bin/mullvad ] && rm /usr/bin/mullvad
+    [ -e /usr/bin/mullvad-daemon ] && rm /usr/bin/mullvad-daemon
+    [ -e /usr/bin/mullvad-exclude ] && rm /usr/bin/mullvad-exclude
+    [ -e /usr/bin/mullvad-problem-report ] && rm /usr/bin/mullvad-problem-report
+
+    # Remove Mullvad app
+    [ -e "/opt/Mullvad VPN" ] && rm -Rf "/opt/Mullvad VPN"
+
+    # Remove Mullvads other misc. shit
+    for i in $(find /usr/share/icons/hicolor/ -name "mullvad-vpn*")
+    do
+        rm "$i"
+    done
+
+    [ -e /usr/local/share/zsh/site-functions/_mullvad ] && rm /usr/local/share/zsh/site-functions/_mullvad
+    [ -e /usr/share/applications/mullvad-vpn.desktop ] && rm /usr/share/applications/mullvad-vpn.desktop
+    [ -e /usr/share/doc/mullvad-vpn ] && rm -Rf /usr/share/doc/mullvad-vpn
+    [ -e /usr/share/fish/vendor_completions.d/mullvad.fish ] && rm /usr/share/fish/vendor_completions.d/mullvad.fish
+    [ -e /usr/lib/systemd/system/mullvad-daemon.service ] && rm /usr/lib/systemd/system/mullvad-daemon.service
+    [ -e /usr/lib/systemd/system/mullvad-early-boot-blocking.service ] && rm /usr/lib/systemd/system/mullvad-early-boot-blocking.service
+    [ -e /usr/share/bash-completion/completions/mullvad ] && rm /usr/share/bash-completion/completions/mullvad
+    [ -e /var/cache/mullvad-vpn ] && rm -Rf /var/cache/mullvad-vpn
+    [ -e /var/log/mullvad-vpn ] && rm -Rf /var/log/mullvad-vpn
+
+    for i in $(find /home/*/.config/autostart/mullvad-vpn.desktop)
+    do
+        rm "$i"
+    done
+
+    [ -e /etc/mullvad-vpn ] &&
+        { printf "Would you like to remove your Mullvad settings directory? (y/N)\n" ; read settingsPrompt ; }
+
+    if [ "$settingsPrompt" = "y" ] || [ "$settingsPrompt" = "Y" ]; then
+        rm -Rf /etc/mullvad-vpn
+    else
+        printf "Cleanup complete.\n" && return 0
+    fi
+}
+
+case $1 in
+    install) install ;;
+    remove) remove ;;
+    help) help ;;
+    *) help ;;
+esac
