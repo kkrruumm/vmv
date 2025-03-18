@@ -5,6 +5,8 @@ This is a highly temporary and scuffed solution.
 
 There is no guarantee that this will even work for you.
 
+Requires glibc.
+
 # Features
 Install, update, and remove the Mullvad client
 
