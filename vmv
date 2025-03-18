@@ -28,12 +28,18 @@ install() {
     [ -e /tmp/vmv/mullvad.deb ] &&
         rm -Rf /tmp/vmv/*
 
+    ! which wget &&
+        xbps-install -Sy wget
+
     # Grab the most recent Mullvad Debian package
     wget --trust-server-names https://mullvad.net/en/download/app/deb/latest -O mullvad.deb
 
     # We need binutils to extract the archive
      ! which ar &&
         xbps-install -Sy binutils
+
+     ! which xz &&
+         xbps-install -Sy xz
 
     # Extract the goods
     ar x mullvad.deb
