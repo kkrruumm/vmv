@@ -2,7 +2,7 @@
 Mullvad client installer for Void Linux (Void MullVad)
 
 This is obsolete.
-I am maintaining an xbps template that handles this the same way (here)[https://github.com/kkrruumm/void-packages/tree/mullvad-vpn].
+I am maintaining an xbps template that handles this the same way [here](https://github.com/kkrruumm/void-packages/tree/mullvad-vpn).
 
 # Features
 Install, update, and remove the Mullvad client
